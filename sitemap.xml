@@ -1,25 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9 http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd" xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 <url>
-<loc>http://localhost:3000/jetpack-the-supercharge-that-expose-your-wp-blog/</loc>
+<loc>https://luc10.github.io/jetpack-the-supercharge-that-expose-your-wp-blog/</loc>
 <lastmod>2016-06-21T10:30:00+02:00</lastmod>
 </url>
 <url>
-<loc>http://localhost:3000/404</loc>
+<loc>https://luc10.github.io/404</loc>
 </url>
 <url>
-<loc>http://localhost:3000/about/</loc>
+<loc>https://luc10.github.io/about/</loc>
 </url>
 <url>
-<loc>http://localhost:3000/blog/</loc>
+<loc>https://luc10.github.io/blog/</loc>
 </url>
 <url>
-<loc>http://localhost:3000/</loc>
+<loc>https://luc10.github.io/</loc>
 </url>
 <url>
-<loc>http://localhost:3000/projects/</loc>
+<loc>https://luc10.github.io/projects/</loc>
 </url>
 <url>
-<loc>http://localhost:3000/tags/</loc>
+<loc>https://luc10.github.io/tags/</loc>
 </url>
 </urlset>
