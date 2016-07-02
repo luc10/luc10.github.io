@@ -3,9 +3,186 @@
 <generator uri="http://jekyllrb.com" version="3.0.3">Jekyll</generator>
 <link href="https://luc10.github.io/feed.xml" rel="self" type="application/atom+xml" />
 <link href="https://luc10.github.io/" rel="alternate" type="text/html" />
-<updated>2016-06-21T13:25:59+02:00</updated>
+<updated>2016-07-02T12:33:09+02:00</updated>
 <id>https://luc10.github.io/</id>
 <title>Luciano Corsalini</title>
+<entry>
+<title>OneDrive: an easter egg into MS library - XSS on Microsoft and not only</title>
+<link href="https://luc10.github.io/onedrive-an-easter-egg-into-ms-library/" rel="alternate" type="text/html" title="OneDrive: an easter egg into MS library - XSS on Microsoft and not only" />
+<published>2016-07-02T12:00:00+02:00</published>
+<updated>2016-07-02T12:00:00+02:00</updated>
+<id>https://luc10.github.io/onedrive-an-easter-egg-into-ms-library</id>
+<content type="html" xml:base="https://luc10.github.io/onedrive-an-easter-egg-into-ms-library/">&lt;p&gt;Website, web services or web apps continuously evolves to add new features for
+customers/users. That’s why a good hunter comes back and restart searching. That’s
+what happened when I noticed a new features on &lt;strong&gt;Vimeo&lt;/strong&gt; (maybe it’s and old one for
+you but I’m not Vimeo addicted so it was the first time I saw it).&lt;/p&gt;
+
+&lt;h2 id=&quot;the-feature&quot;&gt;The feature&lt;/h2&gt;
+
+&lt;p&gt;It’s possible to upload video from Google Drive, Dropbox, OneDrive and Box. I knew
+how Google Drive and Dropbox work so I decided to focus on OneDrive first and then
+Box. Vimeo’s dev self-hosted a so called &lt;strong&gt;OneDrive.min.js&lt;/strong&gt; library subjected to a &lt;strong&gt;XSS&lt;/strong&gt; attack.
+Written a poc, submitted the bug to Vimeo and then quitted.&lt;/p&gt;
+
+&lt;h2 id=&quot;something-i-missed&quot;&gt;Something I missed&lt;/h2&gt;
+
+&lt;p&gt;Have you ever had that feeling? That’s why I reopened my laptop once back and
+googled these words: &lt;em&gt;onedrive&lt;/em&gt;, &lt;em&gt;microsoft&lt;/em&gt;, &lt;em&gt;js&lt;/em&gt;. As first result I got
+this page:&lt;/p&gt;
+
+&lt;p&gt;{% highlight raw %}
+https://dev.onedrive.com/sdk/javascript-picker-saver.htm
+{% endhighlight %}&lt;/p&gt;
+
+&lt;p&gt;It was late, as I said, and I was a bit tired so I didn’t noticed that Microsoft
+hosts different version of &lt;strong&gt;OneDrive&lt;/strong&gt; library so I picked up the &lt;strong&gt;v7&lt;/strong&gt;,
+and after few changes to vimeo poc the famous &lt;strong&gt;alert(document.domain)&lt;/strong&gt;
+was executed on &lt;strong&gt;dev.onedrive.com&lt;/strong&gt;.&lt;/p&gt;
+
+&lt;h2 id=&quot;how-does-it-works&quot;&gt;How does it works?&lt;/h2&gt;
+
+&lt;p&gt;And now, the interesting stuffs:&lt;/p&gt;
+
+&lt;p&gt;{% highlight js %}
+e.handleRedirect = function() {
+    var t = p.readCurrentUrlParameters()
+      , r = f.getWindowState()
+      , n = t[i.PARAM_STATE];
+    if (!n)
+        return null ;
+    a.logMessage(“current state: “ + n);
+    n !== i.STATE_OPEN_POPUP || r.options || (r = JSON.parse(t[i.PARAM_SDK_STATE]));
+    var s = r.options
+      , d = r.optionsMode
+      , h = c[d];
+    s || o.throwError(“missing options from serialized state”);
+    if (t[i.PARAM_ERROR] === i.ERROR_LOGIN_REQUIRED || t[i.PARAM_ERROR] === i.ERROR_AUTH_REQUIRED) {
+        l.deleteLoghinHint(s.clientId);
+        l.loginHint = null ;
+        e.redirectToAADLogin(s, r, !0);
+        return null
+    }
+    l.getLoginHint(s.clientId);
+    var g = u.validateType(s.openInNewWindow, i.TYPE_BOOLEAN);
+    g &amp;amp;&amp;amp; e.&lt;em&gt;displayOverlay();
+    s.advanced &amp;amp;&amp;amp; s.advanced.sharePointTenantPersonalUrl || o.throwError(“advanced options is missing”);
+    switch (n) {
+    case i.STATE_OPEN_POPUP:
+        e.redirectToAADLogin(s, r);
+        break;
+    case i.STATE_AAD_LOGIN:
+        e._handleAADLogin(t, s, h);
+        break;
+    case i.STATE_MSA_PICKER:
+    case i.STATE_AAD_PICKER:
+        var _ = {
+            windowState: r,
+            queryParameters: t
+        };
+        a.logMessage(“sending invoker response”);
+        if (!g)
+            return _;
+        e._sendResponse(&lt;/em&gt;);
+        break;
+    default:
+        o.throwError(“invalid value for redirect state: “ + n)
+    }
+    return null
+}
+{% endhighlight %}&lt;/p&gt;
+
+&lt;p&gt;Once initialized, the code get params from GET query calling the &lt;strong&gt;readCurrentUrlParameters&lt;/strong&gt;
+method and parse the content of &lt;strong&gt;window.name&lt;/strong&gt; calling &lt;strong&gt;getWindowState&lt;/strong&gt;:&lt;/p&gt;
+
+&lt;p&gt;{% highlight js %}
+e.getWindowState = function() {
+  return n.deserializeJSON(window.name || “{}”)
+}
+{% endhighlight %}&lt;/p&gt;
+
+&lt;p&gt;We can control both &lt;strong&gt;GET params&lt;/strong&gt; and &lt;strong&gt;window.name&lt;/strong&gt; so we can pass to next step
+and see what the code does:&lt;/p&gt;
+
+&lt;p&gt;{% highlight js %}
+n = t[i.PARAM_STATE];
+…
+switch (n) {
+  …
+}
+{% endhighlight %}&lt;/p&gt;
+
+&lt;p&gt;The &lt;strong&gt;n&lt;/strong&gt; param control the switch jump and there’s an interesting case (&lt;strong&gt;STATE_AAD_LOGIN&lt;/strong&gt;).&lt;/p&gt;
+
+&lt;p&gt;{% highlight js %}
+case i.STATE_AAD_LOGIN:
+  e._handleAADLogin(t, s, h);&lt;/p&gt;
+
+&lt;p&gt;e._handleAADLogin = function(t, r, n) {
+  r.openInNewWindow || e._displayOverlay();
+  r.advanced.accessToken = t[i.PARAM_ACCESS_TOKEN];
+  if (r.sharePointTenantPersonalUrl)
+      e._redirectToTenant(r, n, r.openInNewWindow);
+      …
+}&lt;/p&gt;
+
+&lt;p&gt;e._redirectToTenant = function(t, r, n) {
+  var a = function(i) {
+      …
+      e.redirect(i, {
+          picker: {
+              accessLevel: n,
+              selectionMode: a,
+              viewType: o,
+              filter: t.advanced.filter
+          },
+          options: t,
+          ODBParams: {
+              p: “2”
+          }
+      })
+  };&lt;/p&gt;
+
+&lt;p&gt;if (t.sharePointTenantPersonalUrl) {
+      var l = t.advanced.sharePointTenantPersonalUrl;
+      a(l)
+  } else {
+    …
+  }
+}&lt;/p&gt;
+
+&lt;p&gt;e.redirect = function(e, t, r) {
+    void 0 === t &amp;amp;&amp;amp; (t = null );
+    void 0 === r &amp;amp;&amp;amp; (r = null );
+    t &amp;amp;&amp;amp; f.setWindowState(t, r);
+    window.location.replace(e)
+}
+{% endhighlight %}&lt;/p&gt;
+
+&lt;p&gt;&lt;em&gt;&lt;strong&gt;handleAADLogin&lt;/strong&gt; call &lt;strong&gt;_redirectToTenant&lt;/strong&gt; that call &lt;strong&gt;a(l)&lt;/strong&gt; which falls into
+&lt;strong&gt;redirect&lt;/strong&gt; method. Wow! There’s no check before _window.location.replace(e)&lt;/em&gt;. We can trig
+a XSS with a simple payload.&lt;/p&gt;
+
+&lt;h2 id=&quot;all-in-onedrive&quot;&gt;All in one(drive)&lt;/h2&gt;
+
+&lt;p&gt;And here you’re a simple poc:&lt;/p&gt;
+
+&lt;p&gt;{% gist luc10/3aab8d8077840470822c3e851f200219 %}&lt;/p&gt;
+
+&lt;h2 id=&quot;easter-egg&quot;&gt;Easter egg&lt;/h2&gt;
+
+&lt;p&gt;While writing this post I noticed that Microsoft hosts other two OneDrive libraries
+(v5 and v6). After some checks I reported another XSS in v6 and discovered that
+v5 (the oldest one) is not affected.&lt;/p&gt;
+</content>
+<category term="xss" />
+<category term="bug" />
+<category term="bounty" />
+<category term="microsoft" />
+<category term="onedrive" />
+<category term="js" />
+<category term="library" />
+<summary>Website, web services or web apps continuously evolves to add new features forcustomers/users. That’s why a good hunter comes back and restart searching. That’swhat happened when I noticed a new features on Vimeo (maybe it’s and old one foryou but I’m not Vimeo addicted so it was the first time I saw it).</summary>
+</entry>
 <entry>
 <title>Jetpack, how to supercharge your WP blog with a XSS</title>
 <link href="https://luc10.github.io/jetpack-the-supercharge-that-expose-your-wp-blog/" rel="alternate" type="text/html" title="Jetpack, how to supercharge your WP blog with a XSS" />
